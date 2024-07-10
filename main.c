@@ -26,9 +26,8 @@ const char *help_msg =
         "          0:  Do not display.\n"
         "          1:  In hexadecimal.\n"
         "          2:  In decimal(The larger the number, the longer it takes).\n"
-        "  -B      Measure the runtime of the calculation. The time is from the beginning of the calculation to"
-        "          saving the result in memory. The time to display the result in hexadecimal or decimal is "
-        "          not included in the time."
+        "  -t      Measure the runtime of the calculation. The measured time is from the beginning of the calculation to"
+        "          writing the result in memory. The tun time for displaying the calculation result is not included."
         "  -h      Show help message (this text) and exit.\n"
         "  --help  Same as '-h' option.\n";
 
@@ -63,7 +62,7 @@ int main(int argc, char **argv) {
     int longIndex;
 
 
-    while ((opt = getopt_long(argc, argv, "n:V:hB", longOpts, &longIndex)) != -1) {
+    while ((opt = getopt_long(argc, argv, "n:d:th", longOpts, &longIndex)) != -1) {
 
         switch (opt) {
             case 'n':
@@ -92,11 +91,11 @@ int main(int argc, char **argv) {
                         break;
                     }
                 }
-                fprintf(stderr, "Invalid mode of result's display for '-d' -- %s\n", optarg);
+                fprintf(stderr, "Invalid result's display mode for '-d' -- %s\n", optarg);
                 print_usage(programmName);
                 return EXIT_FAILURE;
 
-            case 'B':
+            case 't':
                 benchmarkFlg = true;
                 break;
 
@@ -118,9 +117,13 @@ int main(int argc, char **argv) {
     }
 
 
-    // 256^(k-1) < (1/sqrt(5) * ((1 + sqrt(5)) / 2)^n
+    // Approximation of 256^(k-1) < (1/sqrt(5) * ((1 + sqrt(5)) / 2)^n for k.
     size_t size = n / 11 + 1;
     uint8_t *buffer = malloc(size * sizeof(uint8_t));
+    if (buffer == NULL) {
+        printf("Couldn't allocate memory : main().\n");
+        abort();
+    }
     struct timespec start, end;
     double time;
     if (benchmarkFlg) {
@@ -134,10 +137,13 @@ int main(int argc, char **argv) {
         printf("Calculation finished.\n");
     }
 
+
     if (display == 1) {
         printf("Result:0x%s\n", uint8BufferToHexString(size, buffer));
     } else if (display == 2) {
         printf("Result:%s\n", uint8BufferToDecString(size, buffer));
     }
+
     return EXIT_SUCCESS;
+
 }
