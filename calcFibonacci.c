@@ -1,7 +1,3 @@
-//
-// Created by Kyosuke Nakanishi on 08.07.24.
-//
-
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -9,11 +5,8 @@
 #include "calcFibonacci.h"
 
 
-
-
-//////////
 /**
- * addition of two bigInts.
+ * Addition of add1 and left shifted add2(add1 + (add2 << shift)).
  * @param add1
  * @param add2
  * @return Result of addition
@@ -23,6 +16,10 @@ struct bigInt addNumber(const struct bigInt add1, const struct bigInt add2, size
     size_t size = add1.size_32 >= add2.size_32 + shift ? add1.size_32 : add2.size_32 + shift;
     uint32_t *array;
     array = malloc(size * sizeof(uint32_t));
+    if (array == NULL) {
+        printf("Couldn't allocate memory : addNumber().\n");
+        abort();
+    }
     size_t index = 0;
     uint8_t carry = 0;
 
@@ -33,21 +30,21 @@ struct bigInt addNumber(const struct bigInt add1, const struct bigInt add2, size
     }
 
     while (index < add1.size_32 && index < add2.size_32 + shift) {
-        uint64_t sum = ((uint64_t) add1.ptr_32[index]) + ((uint64_t) add2.ptr_32[index - shift]) + carry;
+        uint64_t sum = (uint64_t) add1.ptr_32[index] + (uint64_t) add2.ptr_32[index - shift] + carry;
         array[index] = sum & 0xffffffffffffffff;
         carry = (sum >> 32);
         index++;
     }
 
     while (index < add1.size_32) {
-        uint64_t sum = ((uint64_t) add1.ptr_32[index]) + carry;
+        uint64_t sum = (uint64_t) add1.ptr_32[index] + carry;
         array[index] = sum & 0xffffffffffffffff;
         carry = (sum >> 32);
         index++;
     }
 
     while (index < add2.size_32 + shift) {
-        uint64_t sum = ((uint64_t) add2.ptr_32[index - shift]) + carry;
+        uint64_t sum = (uint64_t) add2.ptr_32[index - shift] + carry;
         array[index] = sum & 0xffffffffffffffff;
         carry = (sum >> 32);
         index++;
@@ -61,8 +58,9 @@ struct bigInt addNumber(const struct bigInt add1, const struct bigInt add2, size
     return ((struct bigInt) {.size_32 = size, .ptr_32 =  array});
 }
 
+
 /**
- * subtraction of two bigInts.
+ * Subtraction of two bigInts.
  * @param minuend
  * @param subtrahend
  * @return Result of subtraction
@@ -71,9 +69,8 @@ struct bigInt subNumber(const struct bigInt minuend, const struct bigInt subtrah
 
     size_t size = minuend.size_32;
     uint32_t *array = malloc(size * sizeof(uint32_t));
-
-    if (array == 0) {
-        printf("Could not reserve memory for subtraction.\n");
+    if (array == NULL) {
+        printf("Couldn't allocate memory : subNumber().\n");
         abort();
     }
 
@@ -82,14 +79,14 @@ struct bigInt subNumber(const struct bigInt minuend, const struct bigInt subtrah
 
     // subtract by using 2's complement.
     while (index < minuend.size_32 && index < subtrahend.size_32) {
-        uint64_t sum = ((uint64_t) *(minuend.ptr_32 + index)) + ((uint64_t) ~*(subtrahend.ptr_32 + index)) + carry;
+        uint64_t sum = (uint64_t) *(minuend.ptr_32 + index) + (uint64_t) ~*(subtrahend.ptr_32 + index) + carry;
         *(array + index) = sum;
         carry = (sum >> 32);
         index++;
     }
 
     while (index < minuend.size_32) {
-        uint64_t sum = ((uint64_t) *(minuend.ptr_32 + index)) + carry + 0xffffffff;
+        uint64_t sum = (uint64_t) *(minuend.ptr_32 + index) + carry + 0xffffffff;
         *(array + index) = sum;
         carry = (sum >> 32);
         index++;
@@ -109,22 +106,32 @@ struct bigInt subNumber(const struct bigInt minuend, const struct bigInt subtrah
 }
 
 
-struct bigInt multiplyNumber(const struct bigInt a, const struct bigInt b) {
+/**
+ * Multiply two bigInt.
+ * @param a
+ * @param b
+ * @return Result of subtraction
+ */
+struct bigInt multiplyNumber(struct bigInt a, struct bigInt b) {
+
     // Calculate maximum length
     size_t maxLength = a.size_32 + b.size_32;
 
-    // Zero the intermediate result
     uint64_t tmpProduct[maxLength];
     for (size_t i = 0; i < maxLength; i++) {
         tmpProduct[i] = 0;
     }
 
-    // Perform written multiplication
+    // For memory access efficiency
+    if (a.size_32 > b.size_32) {
+        struct bigInt tmp = a;
+        a = b;
+        b = tmp;
+    }
+
     for (size_t i = 0; i < a.size_32; i++) {
         for (size_t j = 0; j < b.size_32; j++) {
             tmpProduct[i + j] += (uint64_t) a.ptr_32[i] * (uint64_t) b.ptr_32[j];
-
-            // Handle overflow
             size_t k = i + j;
             while (tmpProduct[k] > UINT32_MAX) {
                 tmpProduct[k + 1] += tmpProduct[k] >> 32;
@@ -140,12 +147,11 @@ struct bigInt multiplyNumber(const struct bigInt a, const struct bigInt b) {
         shortenedLength--;
     }
 
-    // Copy result to return array
     struct bigInt ret;
     ret.size_32 = shortenedLength;
     ret.ptr_32 = malloc(shortenedLength * sizeof(uint32_t));
     if (ret.ptr_32 == NULL) {
-        printf("Couldn't allocate memory in mul.\n");
+        printf("Couldn't allocate memory : multiplyNumber().\n");
         abort();
     }
 
@@ -156,133 +162,181 @@ struct bigInt multiplyNumber(const struct bigInt a, const struct bigInt b) {
     return ret;
 }
 
-struct bigInt karatubaMulNumber(struct bigInt mul1, struct bigInt mul2) {
+
+/**
+ * Square bigInt.
+ * @param a
+ * @return Result of subtraction
+ */
+struct bigInt squareNumber(struct bigInt a) {
+
+    // Calculate maximum length
+    size_t maxLength = a.size_32 * 2;
+
+    uint64_t tmpProduct[maxLength];
+    for (size_t i = 0; i < maxLength; i++) {
+        tmpProduct[i] = 0;
+    }
+
+    for (int i = 0; i < a.size_32; i++) {
+        for (int j = i; j < a.size_32; j++) {
+            uint64_t tmp = (uint64_t) a.ptr_32[i] * (uint64_t) a.ptr_32[j];
+            for (int k = 0; k < 2 - (i == j); k++) {
+                tmpProduct[i + j] += tmp;
+                size_t l = i + j;
+                while (tmpProduct[l] > UINT32_MAX) {
+                    tmpProduct[l + 1] += tmpProduct[l] >> 32;
+                    tmpProduct[l] &= 0xFFFFFFFF;
+                    l++;
+                }
+            }
+        }
+    }
+
+    // Shorten leading zeros
+    size_t shortenedLength = maxLength;
+    while (shortenedLength > 1 && tmpProduct[shortenedLength - 1] == 0) {
+        shortenedLength--;
+    }
+
+    struct bigInt ret;
+    ret.size_32 = shortenedLength;
+    ret.ptr_32 = malloc(shortenedLength * sizeof(uint32_t));
+    if (ret.ptr_32 == NULL) {
+        printf("Couldn't allocate memory : squareNumber().\n");
+        abort();
+    }
+
+    for (size_t i = 0; i < ret.size_32; i++) {
+        ret.ptr_32[i] = (uint32_t) tmpProduct[i];
+    }
+
+    return ret;
+}
+
+/**
+ * Multiply two bigInts with Karatsuba algorithm.
+ * Apply the Karatsuba algorithm recursively until the sum of the length of mul1 and mul2 is less than 50.
+ * @param mul1
+ * @param mul2
+ * @return Result of multiplication
+ */
+struct bigInt karatsubaMulNumber(struct bigInt mul1, struct bigInt mul2) {
+
 
     if (mul1.size_32 + mul2.size_32 <= 50) {
         return multiplyNumber(mul1, mul2);
     }
 
-    long mul1_index_2nd = (mul1.size_32 / 2);
-    long mul2_index_2nd = (mul2.size_32 / 2);
-
-    if (mul1_index_2nd < mul2_index_2nd) {
+    if (mul1.size_32 < mul2.size_32) {
         struct bigInt tmp = mul1;
         mul1 = mul2;
         mul2 = tmp;
-        long tmp_index = mul1_index_2nd;
-        mul1_index_2nd = mul2_index_2nd;
-        mul2_index_2nd = tmp_index;
     }
+
+    size_t shift = mul1.size_32 / 2;
 
     struct bigInt mul1_lower;
-    mul1_lower.size_32 = mul1.size_32 / 2;
+    mul1_lower.size_32 = shift;
     mul1_lower.ptr_32 = mul1.ptr_32;
 
+
     struct bigInt mul1_upper;
-    mul1_upper.size_32 = mul1.size_32 - mul1_index_2nd;
-    mul1_upper.ptr_32 = &mul1.ptr_32[mul1_index_2nd];
-    long mul1_upper_shift = mul1_index_2nd;
+    mul1_upper.size_32 = mul1.size_32 - shift;
+    mul1_upper.ptr_32 = mul1.ptr_32 + shift;
 
-    struct bigInt mul2_lower;
-    mul2_lower.size_32 = mul2.size_32 / 2;
-    mul2_lower.ptr_32 = mul2.ptr_32;
-
-    struct bigInt mul2_upper;
-    mul2_upper.size_32 = mul2.size_32 - mul2_index_2nd;
-    mul2_upper.ptr_32 = &mul2.ptr_32[mul2_index_2nd];
-    long mul2_upper_shift = mul2_index_2nd;
-
-
-    struct bigInt l1_mul_l2 = karatubaMulNumber(mul1_lower, mul2_lower);
-    struct bigInt u1_mul_u2 = karatubaMulNumber(mul1_upper, mul2_upper);
-
-    long shift1 = 0;
-    long shift2 = 0;
-    long shift3 = mul2_index_2nd;
-    if (mul1_index_2nd != mul2_index_2nd) {
-        shift1 = mul1_index_2nd - mul2_index_2nd;
-        shift2 = mul1_index_2nd - mul2_index_2nd;
+    if (mul2.size_32 <= mul1_lower.size_32) {
+        struct bigInt u1_mul_mul2 = karatsubaMulNumber(mul1_upper, mul2);
+        struct bigInt l1_mul_mul2 = karatsubaMulNumber(mul1_lower, mul2);
+        struct bigInt u1_mul_mul2_add_l1_mul_mul2 = addNumber(l1_mul_mul2, u1_mul_mul2, shift);
+        free(u1_mul_mul2.ptr_32);
+        free(l1_mul_mul2.ptr_32);
+        return u1_mul_mul2_add_l1_mul_mul2;
     }
 
+    struct bigInt mul2_lower;
+    mul2_lower.size_32 = shift;
+    mul2_lower.ptr_32 = mul2.ptr_32;
+    struct bigInt mul2_upper;
+    mul2_upper.size_32 = mul2.size_32 - shift;
+    mul2_upper.ptr_32 = mul2.ptr_32 + shift;
+
+    struct bigInt l1_mul_l2 = karatsubaMulNumber(mul1_lower, mul2_lower);
+    struct bigInt u1_mul_u2 = karatsubaMulNumber(mul1_upper, mul2_upper);
+
     struct bigInt u1_add_l1 = addNumber(mul1_upper, mul1_lower, 0);
-    struct bigInt u2_add_l2 = addNumber(mul2_upper, mul2_lower, shift1);
-    struct bigInt u1_add_l1_mul_u2_add_l2 = karatubaMulNumber(u1_add_l1, u2_add_l2);
-    struct bigInt subtrahend = addNumber(u1_mul_u2, l1_mul_l2, shift2);
+    struct bigInt u2_add_l2 = addNumber(mul2_upper, mul2_lower, 0);
+
+    struct bigInt u1_add_l1_mul_u2_add_l2 = karatsubaMulNumber(u1_add_l1, u2_add_l2);
+
+    struct bigInt subtrahend = addNumber(u1_mul_u2, l1_mul_l2, 0);
     struct bigInt u1_add_l1_mul_u2_add_l2_sub_l1_mul_l2_u1_mul_u2 = subNumber(u1_add_l1_mul_u2_add_l2, subtrahend);
 
-    struct bigInt sum1 = l1_mul_l2;
-    struct bigInt sum1_sum2 = addNumber(sum1, u1_mul_u2, mul1_upper_shift + mul2_upper_shift);
-    struct bigInt sum1_sum2_sum3 = addNumber(sum1_sum2, u1_add_l1_mul_u2_add_l2_sub_l1_mul_l2_u1_mul_u2, shift3);
+    struct bigInt tmp = addNumber(l1_mul_l2, u1_mul_u2, shift * 2);
+    struct bigInt sum = addNumber(tmp, u1_add_l1_mul_u2_add_l2_sub_l1_mul_l2_u1_mul_u2,
+                                  shift);
 
-    free(sum1_sum2.ptr_32);
+    free(tmp.ptr_32);
     free(u1_add_l1_mul_u2_add_l2.ptr_32);
     free(u1_add_l1_mul_u2_add_l2_sub_l1_mul_l2_u1_mul_u2.ptr_32);
     free(subtrahend.ptr_32);
     free(u1_add_l1.ptr_32);
     free(u2_add_l2.ptr_32);
+    free(l1_mul_l2.ptr_32);
     free(u1_mul_u2.ptr_32);
 
-    return sum1_sum2_sum3;
+    return sum;
+
 }
 
 /**
- * multiply supermassive two same Number(bigInt) with Karatsuba algorithm.
- * continue to apply the Karatsuba algorithm recursively until the length of either mul1 or mul2 is 1.
+ * square bigInt with Karatsuba algorithm.
+ * Apply the Karatsuba algorithm recursively until the length of mul is less than 50.
  * @param mul1
  * @param mul2
- * @return answer of multiplication
+ * @return Result of square
  */
-struct bigInt karatsubaMulSameNumber(struct bigInt mul) {
+struct bigInt karatsubaSquareNumber(struct bigInt mul) {
 
     if (mul.size_32 <= 25) {
-        return multiplyNumber(mul, mul);
+        return squareNumber(mul);
     }
 
-    long mul_index = (mul.size_32 / 2);
+    size_t shift = mul.size_32 / 2;
 
-    // lower parts of mul
     struct bigInt mul_lower;
-    mul_lower.size_32 = mul.size_32 / 2;
+    mul_lower.size_32 = shift;
     mul_lower.ptr_32 = mul.ptr_32;
 
-    // upper parts of mul
     struct bigInt mul_upper;
-    mul_upper.size_32 = mul.size_32 - mul_index;
-    mul_upper.ptr_32 = &mul.ptr_32[mul_index];
-    long mul_upper_shift = mul_index;
+    mul_upper.size_32 = mul.size_32 - shift;
+    mul_upper.ptr_32 = mul.ptr_32 + shift;
 
-    struct bigInt l_mul_l = karatsubaMulSameNumber(mul_lower);
-    struct bigInt u_mul_u = karatsubaMulSameNumber(mul_upper);
+    struct bigInt squareL = karatsubaSquareNumber(mul_lower);
+    struct bigInt squareU = karatsubaSquareNumber(mul_upper);
+    struct bigInt addUL = addNumber(mul_upper, mul_lower, 0);
+    struct bigInt square_addUL = karatsubaSquareNumber(addUL);
+    struct bigInt add_squareL_squareU = addNumber(squareL, squareU, 0);
+    struct bigInt u1_add_l1_mul_u2_add_l2_sub_l1_mul_l2_u1_mul_u2 = subNumber(square_addUL, add_squareL_squareU);
 
-    long shift3 = mul_index;
-    struct bigInt u_add_l = addNumber(mul_upper, mul_lower, 0);
-    struct bigInt u_add_l_mul_u_add_l = karatsubaMulSameNumber(u_add_l);
-    struct bigInt subtrahend = addNumber(u_mul_u, l_mul_l, 0);
-    struct bigInt u_add_l_mul_u_add_l_sub_l_mul_l_u_mul_u = subNumber(u_add_l_mul_u_add_l, subtrahend);
+    struct bigInt tmp = addNumber(squareL, squareU, shift * 2);
+    struct bigInt sum = addNumber(tmp, u1_add_l1_mul_u2_add_l2_sub_l1_mul_l2_u1_mul_u2,
+                                  shift);
 
-    struct bigInt sum1 = l_mul_l;
-//    struct bigInt sum2 = shift(u_mul_u, mul_upper_shift * 2);
-//    struct bigInt sum3 = shift(u_add_l_mul_u_add_l_sub_l_mul_l_u_mul_u, shift3);
-    struct bigInt sum1_sum2 = addNumber(sum1, u_mul_u, mul_upper_shift * 2);
-    struct bigInt sum1_sum2_sum3 = addNumber(sum1_sum2, u_add_l_mul_u_add_l_sub_l_mul_l_u_mul_u, shift3);
+    free(tmp.ptr_32);
+    free(square_addUL.ptr_32);
+    free(u1_add_l1_mul_u2_add_l2_sub_l1_mul_l2_u1_mul_u2.ptr_32);
+    free(add_squareL_squareU.ptr_32);
+    free(addUL.ptr_32);
+    free(squareU.ptr_32);
+    free(squareL.ptr_32);
 
-    // release memory
-    free(sum1_sum2.ptr_32);
-//    if (shift3) free(sum3.type.ptr_64);
-//    if (mul_upper_shift * 2) free(sum2.type.ptr_64);
-    free(u_add_l_mul_u_add_l_sub_l_mul_l_u_mul_u.ptr_32);
-    free(u_add_l_mul_u_add_l.ptr_32);
-    free(subtrahend.ptr_32);
-    free(u_add_l.ptr_32);
-    free(l_mul_l.ptr_32);
-    free(u_mul_u.ptr_32);
-
-    return sum1_sum2_sum3;
+    return sum;
 }
 
 
 /**
- * Multiply two 2*2 matrices. Each matrix has (n+1)-th, n-th,(n-1)-th elements.
+ * Multiply two 2*2 matrices. Each matrix has (n+1)th, nth,(n-1)th elements.
  * Multiply　mode can be chosen, the same matrix multiplication (square) or normal multiplication.
  *
  * @param a matrix(f(n+1), f(n),f(n-1))
@@ -299,17 +353,17 @@ struct matrix multiplyMatrix(struct matrix a, struct matrix b, enum mulMode mode
 
     if (mode == Normal) {
         // normal matrix multiplication
-        nxt_mul_nxt = karatubaMulNumber(a.f_n_nxt, b.f_n_nxt);
-        n_mul_n = karatubaMulNumber(a.f_n_curr, b.f_n_curr);
-        pre_mul_pre = karatubaMulNumber(a.f_n_prv, b.f_n_prv);
+        nxt_mul_nxt = karatsubaMulNumber(a.f_n_nxt, b.f_n_nxt);
+        n_mul_n = karatsubaMulNumber(a.f_n_curr, b.f_n_curr);
+        pre_mul_pre = karatsubaMulNumber(a.f_n_prv, b.f_n_prv);
         m.f_n_nxt = addNumber(nxt_mul_nxt, n_mul_n, 0);
         m.f_n_prv = addNumber(n_mul_n, pre_mul_pre, 0);
         m.f_n_curr = subNumber(m.f_n_nxt, m.f_n_prv);
     } else {
         // square matrix multiplication
-        nxt_mul_nxt = karatsubaMulSameNumber(a.f_n_nxt);
-        n_mul_n = karatsubaMulSameNumber(a.f_n_curr);
-        pre_mul_pre = karatsubaMulSameNumber(a.f_n_prv);
+        nxt_mul_nxt = karatsubaSquareNumber(a.f_n_nxt);
+        n_mul_n = karatsubaSquareNumber(a.f_n_curr);
+        pre_mul_pre = karatsubaSquareNumber(a.f_n_prv);
         m.f_n_nxt = addNumber(nxt_mul_nxt, n_mul_n, 0);
         m.f_n_prv = addNumber(n_mul_n, pre_mul_pre, 0);
         m.f_n_curr = subNumber(nxt_mul_nxt, pre_mul_pre);
@@ -318,6 +372,7 @@ struct matrix multiplyMatrix(struct matrix a, struct matrix b, enum mulMode mode
     free(n_mul_n.ptr_32);
     free(pre_mul_pre.ptr_32);
     free(nxt_mul_nxt.ptr_32);
+
     return m;
 }
 
@@ -340,7 +395,7 @@ void fib(uint64_t n, size_t len, uint8_t buf[len]) {
 
     if (squareNxt == NULL || squareCurr == NULL || squarePrv == NULL || resultNxt == NULL || resultCurr == NULL ||
         resultPrv == NULL) {
-        printf("Couldn't allocate memory");
+        printf("Couldn't allocate memory : fib().\n");
         abort();
     }
     *(squareNxt) = 1;

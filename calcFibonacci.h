@@ -3,7 +3,7 @@
 
 #include "bigInt.h"
 
-const enum mulMode {
+enum mulMode {
     Square,
     Normal
 };
@@ -20,9 +20,9 @@ struct bigInt subNumber(const struct bigInt minuend, const struct bigInt subtrah
 
 struct bigInt multiplyNumber(const struct bigInt a, const struct bigInt b);
 
-struct bigInt karatubaMulNumber(struct bigInt mul1, struct bigInt mul2);
+struct bigInt karatsubaMulNumber(struct bigInt mul1, struct bigInt mul2);
 
-struct bigInt karatsubaMulSameNumber(struct bigInt mul);
+struct bigInt karatsubaSquareNumber(struct bigInt mul);
 
 struct matrix multiplyMatrix(struct matrix a, struct matrix b, enum mulMode mode);
 
