@@ -1,7 +1,3 @@
-//
-// Created by Kyosuke Nakanishi on 08.07.24.
-//
-
 #ifndef CALCFIBONACCI_UTIL_H
 #define CALCFIBONACCI_UTIL_H
 

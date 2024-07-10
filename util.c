@@ -24,97 +24,59 @@ uint8_t hexToInt(char letter) {
     } else if ('A' <= letter && letter <= 'F') {
         return letter - 65 + 10;
     } else {
-        printf("Given char is no hex digit: %c\n", letter);
+        printf("Given char is not valid hex character.-- %c\n", letter);
         abort();
     }
 }
 
 
+/**
+ *
+ * @param n
+ * @param ptr
+ * @return
+ */
 char *uint8BufferToHexString(size_t n, const uint8_t *ptr) {
-    //Reserve memory for the return value
+
     char *ret = malloc(n * 2 * sizeof(char) + 1);
     if (ret == NULL) {
-        printf("Could not reserve memory for HexString");
+        printf("Couldn't allocate memory : uint8BufferToHexString().\n");
         abort();
     }
-    bool firstdigitWritten = false; //shortens leading zeros
+    bool notZeroFlg = false; //shortens leading zeros
     size_t stringIndex = 0;
 
     //starts at the most significant bit and converts one u_int8t value to two hex chars
     for (size_t i = 0; i < n; i++) {
         uint8_t val = *(ptr + n - 1 - i);
 
-        if ((val >> 4) > 0 || firstdigitWritten) {
+        if ((val >> 4) > 0 || notZeroFlg) {
             *(ret + stringIndex++) = intToHex(val >> 4);
-            firstdigitWritten = true;
+            notZeroFlg = true;
         }
-        if ((val & 0xf) > 0 || firstdigitWritten) {
+        if ((val & 0xf) > 0 || notZeroFlg) {
             *(ret + stringIndex++) = intToHex(val & 0xf);
-            firstdigitWritten = true;
+            notZeroFlg = true;
         }
     }
 
     // return zero if no digits were written
-    if (!firstdigitWritten) {
+    if (!notZeroFlg) {
         *(ret + stringIndex++) = '0';
     }
 
     //set the last arrayfield to zero for null termination of String
     *(ret + stringIndex) = 0;
     return ret;
+
 }
 
-char *bigIntToHexString(struct bigInt *a) {
-    return uint8BufferToHexString(a->size_32 * 4, (uint8_t *) a->ptr_32);
-}
-
-
-
-struct bigInt hexStringToBigInt(const char *string) {
-    size_t stringLength = strlen(string);
-    //leerer string
-    if (stringLength == 0) {
-        printf("Tried to create a bigInt from emptyString\n");
-        abort();
-    }
-
-    size_t arraylength = (stringLength) / 8;
-    if (stringLength % 8 > 0) arraylength++;
-
-
-    //reserve memory
-    uint8_t *array = calloc(arraylength, sizeof(uint32_t));
-    if (array == 0) {
-        printf("Could'nt allocate memory for bigInt.\n");
-        abort();
-    }
-
-    size_t stringIndex = stringLength;
-    size_t arrayIndex = 0;
-    uint8_t buffer = 0;
-    bool bufferused = false;
-
-    //goes through the string from tail (=least significant bits) and converts two chars to one u_int8_t number
-    do {
-        stringIndex--;
-        char letter = *(string + stringIndex);
-
-        if (bufferused) {
-            buffer += hexToInt(letter) << 4;
-            bufferused = false;
-            *(array + arrayIndex) = buffer;
-            arrayIndex++;
-        } else {
-            buffer = hexToInt(letter);
-            bufferused = true;
-        }
-    } while (stringIndex != 0);
-
-    if (bufferused) *(array + arrayIndex) = buffer;
-
-    return (struct bigInt) {.size_32 = arraylength, .ptr_32 = (uint32_t *) array};
-}
-
+/**
+ *
+ * @param n : Length of buffer.
+ * @param buf : Memory in which big integer is stored in little-endian.
+ * @return big integer in decimal notation.
+ */
 char *uint8BufferToDecString(size_t n, const uint8_t *buf) {
 
     uint32_t divider = pow(10.0, 9);
@@ -130,7 +92,7 @@ char *uint8BufferToDecString(size_t n, const uint8_t *buf) {
             } else {
                 char *ch = calloc(1, sizeof(char));
                 if (ch == NULL) {
-                    fprintf(stderr, "Could'nt allocate memory for the decimal string");
+                    printf("Couldn't allocate memory : uint8BufferToDecString().\n");
                     abort();
                 }
                 ch[0] = '0';
@@ -144,10 +106,18 @@ char *uint8BufferToDecString(size_t n, const uint8_t *buf) {
     struct bigInt b;
     b.size_32 = (n / 4) + (n % 4 == 0 ? 0 : 1);
     b.ptr_32 = calloc(b.size_32, sizeof(uint32_t));
+    if (b.ptr_32 == NULL) {
+        printf("Couldn't allocate memory : uint8BufferToDecString().\n");
+        abort();
+    }
 
     struct bigInt quotient;
     quotient.size_32 = (n / 4) + (n % 4 == 0 ? 0 : 1);
     quotient.ptr_32 = calloc(b.size_32, sizeof(uint32_t));
+    if (quotient.ptr_32 == NULL) {
+        printf("Couldn't allocate memory : uint8BufferToDecString().\n");
+        abort();
+    }
 
     size_t k = 0;
     for (; k + 3 < n;) {
@@ -166,7 +136,7 @@ char *uint8BufferToDecString(size_t n, const uint8_t *buf) {
     char *decimalCharArray = calloc(digitDecimal, sizeof(char));
     size_t decimalArrayCnt = 0;
 
-    // if 0th elemente(lowest position) and the result of division is 0, terminate the process
+    // if 0th element(the least significant position) and the result of division is 0, terminate the process
     while (!(b.ptr_32[b.size_32 - 1] / divider == 0 && b.size_32 - 1 == 0)) {
 
         int lag = 0;
